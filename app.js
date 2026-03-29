@@ -1,40 +1,52 @@
 const express = require('express');
 const path = require('path');
-const dotenv = require('dotenv');
-const mainRouter = require('./routes/router');
+const methodOverride = require('method-override');
+const { engine } = require('express-handlebars');
+require('dotenv').config();
 
-dotenv.config();
+const db = require('./models');
+const siteRoutes = require('./routes/siteRoutes');
+const userRoutes = require('./routes/userRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
+app.engine(
+  'hbs',
+  engine({
+    extname: '.hbs',
+    defaultLayout: 'main',
+    layoutsDir: path.join(__dirname, 'views', 'layouts')
+  })
+);
+
+app.set('view engine', 'hbs');
+app.set('views', path.join(__dirname, 'views'));
+
 app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
+app.use(methodOverride('_method'));
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.use('/', mainRouter);
+app.use('/', siteRoutes);
+app.use('/', userRoutes);
 
 app.use((req, res) => {
-  res.status(404).send(`
-    <!DOCTYPE html>
-    <html lang="es">
-      <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>404 | Ruta no encontrada</title>
-        <link rel="stylesheet" href="/style.css" />
-      </head>
-      <body>
-        <main class="container">
-          <h1>404</h1>
-          <p>La ruta solicitada no existe.</p>
-          <a class="button" href="/">Volver al inicio</a>
-        </main>
-      </body>
-    </html>
-  `);
+  res.status(404).send('Ruta no encontrada');
 });
 
-app.listen(PORT, () => {
-  console.log(`Servidor iniciado correctamente en http://localhost:${PORT}`);
-});
+db.sequelize
+  .authenticate()
+  .then(() => {
+    console.log('Conexión a PostgreSQL exitosa');
+    return db.sequelize.sync();
+  })
+  .then(() => {
+    console.log('Modelos sincronizados');
+    app.listen(PORT, () => {
+      console.log(`Servidor corriendo en http://localhost:${PORT}`);
+    });
+  })
+  .catch((error) => {
+    console.error('Error al conectar con la base de datos:', error.message);
+  });
